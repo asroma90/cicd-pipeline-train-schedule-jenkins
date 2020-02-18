@@ -1,0 +1,130 @@
+#!/bin/bash
+
+#Convert upper-case cell names to venus groups
+
+function c2v() {
+        echo $* | perl -pe 's#([A-Z]+[0-9]*)#lc("cluster/cell/$1")#ge;'
+}
+
+function uu() {
+        scprdo -c "uptime ; uname -a" $(c2v $*)
+}
+
+echo " "
+echo "Searching for the latest kernel version in the repositories:"
+echo " "
+
+#I took smtcac0085 because it is updated almost the last
+
+function latest_version() {
+        scprdo -c 'yum list updates "kernel.x86_64" | grep kernel' smtcac0085 | grep kernel | awk '{ print $2 }'
+}
+latest_version
+
+echo " "
+read -p "Please enter the latest kernel version: " kernel
+if [ $kernel == $(latest_version) ]
+    then
+        echo "There is a match between versions."
+        echo " "
+    else
+        echo "NO! The latest kernel version is: $(latest_version)"
+        exit 1
+fi
+
+
+while true
+   do
+    read -p "Please specify a cluster to verify: [1]nvh_bf [2]midas [3]crash [E]xit: " cluster
+        case "$cluster" in
+             nvh_bf)  echo -e "You have picked cluster: $cluster\n"
+                      echo " "
+                      echo "Please wait"
+                      echo " "
+                      echo -ne '                    (0%)\r'
+                      sleep 5
+                      cells=$(astat -s -c $cluster | awk '{ print $1 }' | grep -A 600 '-' | grep -v '-' | grep -v 'EOF' | tr '\n' ' ')
+                      echo -ne '#######                  (25%)\r'
+                      sleep 10
+                      echo -ne '################         (50%)\r'
+                      sleep 5
+                      echo -ne '################         (75%)\r'
+                      sleep 10
+                      for cell in $cells
+                         do
+                           uu $cell | grep -v "$kernel" | grep -v INFO
+                      done > not_updated_${cluster}_test 2> /dev/null
+                      echo -ne '########################(100%)\r'
+                      echo -ne '\n'
+                      if [ -f not_updated_${cluster} ]
+                         then
+                             echo " "
+                             echo "The following CELLS need to be updated to the latest kernel:"
+                             echo " "
+                             cat not_updated_${cluster} | grep -B 3 "GNU/Linux" | grep '##' | awk '{ print $2 }' | tr '\n' ' ' | hosts2cells.py
+                             echo " "
+					  fi
+                      ;;
+              midas)  echo -e "You have picked cluster: $cluster\n"
+                      echo " "
+                      echo "Please wait"
+                      echo " "
+                      echo -ne '                    (0%)\r'
+                      sleep 5
+                      cells=$(astat -s -c $cluster | awk '{ print $1 }' | grep -A 600 '-' | grep -v '-' | grep -v 'EOF' | tr '\n' ' ')
+                      echo -ne '#######                  (25%)\r'
+                      sleep 10
+                      echo -ne '################         (50%)\r'
+                      sleep 5
+                      echo -ne '################         (75%)\r'
+                      sleep 10
+                      for cell in $cells
+                         do
+                           uu $cell | grep -v "$kernel" | grep -v INFO
+                      done > not_updated_${cluster}_test 2> /dev/null
+                      echo -ne '########################(100%)\r'
+                      echo -ne '\n'
+                      if [ -f not_updated_${cluster}_test ]
+                         then
+                             echo " "
+                             echo "The following CELLS need to be updated to the latest kernel:"
+                             echo " "
+                             cat not_updated_${cluster}_test | grep -B 3 "GNU/Linux" | grep '##' | awk '{ print $2 }' | tr '\n' ' ' | hosts2cells.py
+                             echo " "
+                      fi
+                      ;;
+ #crash will take the most time (10 min aprox.)
+              crash)  echo -e "You have picked cluster: $cluster\n"
+                      echo " "
+                      if [ $cluster == "crash" ]
+                         then
+                             echo "Please wait, this is the largest cluster and will take almost 10 min."
+                      fi
+                      echo -ne '                    (0%)\r'
+                      sleep 5
+                      cells=$(astat -s -c $cluster | awk '{ print $1 }' | grep -A 600 '-' | grep -v '-' | grep -v 'EOF' | tr '\n' ' ')
+                      echo -ne '#######                  (25%)\r'
+                      sleep 10
+                      echo -ne '################         (50%)\r'
+                      sleep 5
+                      echo -ne '################         (75%)\r'
+                      sleep 10
+                      for cell in $cells
+                         do
+                           uu $cell | grep -v "$kernel" | grep -v INFO
+                      done > not_updated_${cluster}_test 2> /dev/null
+                      echo -ne '########################(100%)\r'
+                      echo -ne '\n'
+                      if [ -f not_updated_${cluster}_test ]
+                         then
+                             echo " "
+                             echo "The following CELLS need to be updated to the latest kernel:"
+                             echo " "
+                             cat not_updated_${cluster}_test | grep -B 3 "GNU/Linux" | grep '##' | awk '{ print $2 }' | tr '\n' ' ' | hosts2cells.py
+                             echo " "
+                      fi
+                      ;;
+             [Ee]* ) echo "exited by $USER"; exit;;
+             * ) echo "Please try again";;
+        esac
+done
